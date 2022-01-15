@@ -4,3 +4,7 @@ class EmptyListException(Exception):
 
 class MissingRequiredVariableException(Exception):
     pass
+
+
+class UnexpectedResponseException(Exception):
+    pass

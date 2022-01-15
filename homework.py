@@ -2,33 +2,20 @@ import logging
 import os
 import sys
 import time
-from http import HTTPStatus
 
 import requests
 import telegram
 from dotenv import load_dotenv
 
 import exceptions
+import myconstants
 
 load_dotenv()
-
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-
-
-RETRY_TIME = 600
-ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
-
-
-HOMEWORK_STATUSES = {
-    'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
-    'reviewing': 'Работа взята на проверку ревьюером.',
-    'rejected': 'Работа проверена: у ревьюера есть замечания.'
-}
-
 
 logger = logging.getLogger()
 streamHandler = logging.StreamHandler(sys.stdout)
@@ -46,15 +33,27 @@ def send_message(bot, message):
 def get_api_answer(current_timestamp):
     """Делает запрос к единственному эндпоинту API-сервиса."""
     timestamp = current_timestamp or int(time.time())
-    # timestamp = 1634081059
     params = {'from_date': timestamp}
-    homework_statuses = requests.get(ENDPOINT, headers=HEADERS, params=params)
-    if homework_statuses.status_code != HTTPStatus.OK:
-        logger.error(
-            f'Сбой в работе программы: Эндпоинт {ENDPOINT} недоступен.'
+    try:
+        homework_statuses = requests.get(
+            myconstants.ENDPOINT,
+            headers=HEADERS,
+            params=params
         )
-        raise requests.ConnectionError('сетевая ошибка')
-    return homework_statuses.json()
+        if homework_statuses.status_code // 100 != 2:
+            logger.error(
+                f'Ошибка: неожиданный ответ {homework_statuses}.'
+            )
+            raise exceptions.UnexpectedResponseException(
+                f'Ошибка: неожиданный ответ {homework_statuses}.'
+            )
+        return homework_statuses.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(
+            'Сбой в работе программы: ',
+            f'Эндпоинт {myconstants.ENDPOINT} недоступен.'
+        )
+        raise ("Error: {}".format(e))
 
 
 def check_response(response):
@@ -72,7 +71,7 @@ def parse_status(homework):
     """Извлекает статус домашней работы."""
     homework_name = homework['homework_name']
     homework_status = homework['status']
-    verdict = HOMEWORK_STATUSES[homework_status]
+    verdict = myconstants.HOMEWORK_STATUSES[homework_status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -87,7 +86,9 @@ def check_tokens():
                     'Отсутствует обязательная переменная окружения.'
                 )
         except exceptions.MissingRequiredVariableException:
-            raise
+            raise exceptions.MissingRequiredVariableException(
+                'Отсутствует обязательная переменная окружения.'
+            )
     return variable_availability
 
 
@@ -107,13 +108,11 @@ def main():
                     send_message(bot, status)
                 status_old = status
             current_timestamp = response.get('current_date')
-            time.sleep(RETRY_TIME)
+            time.sleep(myconstants.RETRY_TIME)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             print(message)
-            time.sleep(RETRY_TIME)
-        else:
-            pass
+            time.sleep(myconstants.RETRY_TIME)
 
 
 if __name__ == '__main__':
