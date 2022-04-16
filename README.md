@@ -19,6 +19,9 @@
 ```
 git clone https://github.com/Evgenia789/homework_bot
 ``` 
+```
+cd homework_bot
+``` 
 Cоздать и активировать виртуальное окружение:
 ```
 python3 -m venv env
